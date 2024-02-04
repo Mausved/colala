@@ -21,7 +21,10 @@ import (
 
 const tgBotToken = "6749520657:AAFTRfH100OjgU3BH-MRtt5XLujnwAJGjB4"
 
-var startVmPattern = regexp.MustCompile(`start-.*`)
+var (
+	startVmPattern = regexp.MustCompile(`start-.*`)
+	stopVmPattern  = regexp.MustCompile(`stop-.*`)
+)
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -122,6 +125,21 @@ func process(ctx context.Context, bot *tgbotapi.BotAPI, tgMsg *tgbotapi.Message,
 			return fmt.Errorf("failed start vm: %w", err)
 		}
 		message := tgbotapi.NewMessage(tgMsg.From.ID, fmt.Sprintf("started vm %s, public ip: %s", vmID, publicIP))
+		if _, err := bot.Send(message); err != nil {
+			return fmt.Errorf("failed send message: %v", err)
+		}
+		return nil
+	case stopVmPattern.MatchString(tgMsg.Text):
+		vmID := tgMsg.Text[len("start-"):]
+		err := yandex.stopVm(ctx, vmID)
+		if err != nil {
+			message := tgbotapi.NewMessage(tgMsg.From.ID, err.Error())
+			if _, err := bot.Send(message); err != nil {
+				return fmt.Errorf("failed send message: %v", err)
+			}
+			return fmt.Errorf("failed stop vm: %w", err)
+		}
+		message := tgbotapi.NewMessage(tgMsg.From.ID, fmt.Sprintf("stopped vm %s", vmID))
 		if _, err := bot.Send(message); err != nil {
 			return fmt.Errorf("failed send message: %v", err)
 		}
@@ -294,6 +312,41 @@ func (c *yandexCloudApiClient) startVm(ctx context.Context, vmID string) (string
 	}
 
 	return addr, nil
+}
+
+func (c *yandexCloudApiClient) stopVm(ctx context.Context, vmID string) error {
+	vm, err := c.instanceServiceClient.Get(ctx, &compute.GetInstanceRequest{
+		InstanceId: vmID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed get vm: %v", err)
+	}
+
+	if vm.GetStatus() == compute.Instance_STOPPED {
+		log.Printf("vm %q already stopped!", vm.GetName())
+		return nil
+	}
+
+	_, err = c.instanceServiceClient.Start(ctx, &compute.StartInstanceRequest{
+		InstanceId: vmID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed start vm: %v", err)
+	}
+
+	ticker := time.NewTicker(1 * time.Second)
+	for vm.GetStatus() != compute.Instance_STOPPED {
+		<-ticker.C
+		vm, err = c.instanceServiceClient.Get(ctx, &compute.GetInstanceRequest{
+			InstanceId: vmID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed get vm: %v", err)
+		}
+	}
+	ticker.Stop()
+
+	return nil
 }
 
 func getVmPublicIP(vm *compute.Instance) string {
