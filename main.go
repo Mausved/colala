@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -27,6 +28,11 @@ var (
 )
 
 func main() {
+	tgBotToken := os.Getenv("TG_BOT_TOKEN")
+	if tgBotToken == "" {
+		log.Fatalf("empty tg bot token")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
