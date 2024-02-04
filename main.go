@@ -327,7 +327,7 @@ func (c *yandexCloudApiClient) stopVm(ctx context.Context, vmID string) error {
 		return nil
 	}
 
-	_, err = c.instanceServiceClient.Start(ctx, &compute.StartInstanceRequest{
+	_, err = c.instanceServiceClient.Stop(ctx, &compute.StopInstanceRequest{
 		InstanceId: vmID,
 	})
 	if err != nil {
