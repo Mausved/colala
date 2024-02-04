@@ -130,7 +130,7 @@ func process(ctx context.Context, bot *tgbotapi.BotAPI, tgMsg *tgbotapi.Message,
 		}
 		return nil
 	case stopVmPattern.MatchString(tgMsg.Text):
-		vmID := tgMsg.Text[len("start-"):]
+		vmID := tgMsg.Text[len("stop-"):]
 		err := yandex.stopVm(ctx, vmID)
 		if err != nil {
 			message := tgbotapi.NewMessage(tgMsg.From.ID, err.Error())
